@@ -19,7 +19,8 @@
   "content_scripts": [
     {
       "matches": ["https://jira.coke.com/jira/browse/*"],
-      "js": ["util/jquery.min.js", "main/jiramon.js", "util/jquery.canvasjs.min.js", "content.js"]
+      "css": ["content.css"],
+      "js": ["util/Chart.min.js","util/utils.js","util/jquery.min.js", "main/jiramon.js", "util/jquery.canvasjs.min.js", "content.js"]
     }
   ],
    "permissions": [
@@ -28,5 +29,8 @@
     "tabs",
     "unlimitedStorage",
     "*://*/*"
+  ],
+   "web_accessible_resources": [
+    "content.css"
   ]
 }
