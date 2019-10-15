@@ -5,7 +5,7 @@
   "version": "1",
   "options_page": "options/options.html",
   "browser_action": {
-    "default_title": "KOJiraMon",
+    "default_title": "JiraStoryBurndown",
     "default_icon": "img/jira128.png",
     "default_popup": "popup/popup.html"
   },
@@ -20,7 +20,7 @@
     {
       "matches": ["https://jira.coke.com/jira/browse/*"],
       "css": ["content.css"],
-      "js": ["util/Chart.min.js","util/utils.js","util/jquery.min.js", "main/jiramon.js", "util/jquery.canvasjs.min.js", "content.js"]
+      "js": ["util/Chart.min.js","util/jquery.min.js", "main/jiramon.js",  "content.js"]
     }
   ],
    "permissions": [

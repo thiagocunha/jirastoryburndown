@@ -52,17 +52,19 @@ function createConfig(details, data) {
                 data: data,
                 borderColor: 'red',
                 fill: false,
+                lineTension:0
             },
             {
                 label: details.steppedLine,
                 steppedLine: details.steppedLine,
-                data: [85, 85*(6/7), 85*(5/7), 85*(4/7), 85*(3/7), 85*(2/7), 85*(1/7), 0],
+                data: [85, ,,,,,, 0], //data: [85, 85*(6/7), 85*(5/7), 85*(4/7), 85*(3/7), 85*(2/7), 85*(1/7), 0],
                 borderColor: 'green',
                 fill: false,
+                lineTension:0,
+                spanGaps: true
             }]
         },
         options: {
-            bezierCurve: false,
             responsive: true,
             scales:{
                 xAxes:[
@@ -105,6 +107,17 @@ function drawGraph2() {
     });
 }
 
+function DateFromEpochMs(e){
+    if (e){
+        var d = new Date(0);
+        d.setUTCMilliseconds(e);
+        return d;
+    }
+    else{
+        return e;
+    }
+}
+
 function domChange(){
     $('chartContainer').remove();
     var chartParentContainer = $("<div id='chartParentContainer'></div>");
@@ -116,6 +129,119 @@ function domChange(){
     chartParentContainer.prepend(chartToggle);
 
     $('#viewissuesidebar').prepend(chartParentContainer);
-    drawGraph2();
+
+
+    var dueDate = $("#due-date time").attr("datetime");
+    var issueID = $("#key-val.issue-link").attr("rel");
+
+    if (dueDate){
+        //https://jira.coke.com/jira/secure/QuickEditIssue!default.jspa?issueId=679196&decorator=none
+
+        $.ajax({
+            url: "https://" + window.location.hostname + "/jira/secure/QuickEditIssue!default.jspa?issueId="+issueID+"&decorator=none"
+        }).done(function( ticketData ) {
+
+            var ticketDueDate;
+            var ticketOriginalEstimate;
+            var todayDate;
+
+            for (var i=0;i<ticketData.fields.length;i++){
+                var currentField = ticketData.fields[i];
+
+                if (currentField.id == "duedate"){
+                    console.log(currentField.editHtml);
+
+                    var r = /id=.duedate.*?value=.(\d+\/.{1,3}\/.{2,4}).>/gm;
+                    var m = r.exec(currentField.editHtml);
+                    if (m)
+                    {
+                        console.log(m);
+                        ticketDueDate = m[1];
+                    }
+                }
+                else if (currentField.id == "timetracking"){
+                    console.log(currentField.editHtml);
+
+                    var r = /id=.timetracking_originalestimate.*?value=.([\d\w\s]*?).\/>/gm;
+                    var m = r.exec(currentField.editHtml);
+                    if (m)
+                    {
+                        console.log(m);
+                        ticketOriginalEstimate = m[1];
+                    }
+                }
+            }
+
+            $.ajax({
+                url: "https://" + window.location.hostname + "/jira/rest/com.deniz.jira.worklog/1.0/timesheet/issueId?targetKey="+issueID+"&_=1571075815473"
+            }).done(function( data ) {
+
+                console.log(data);
+                
+                var totalDaysRange = data.daysBetween;
+                var firstLogDay;
+                var lastLogDay;
+                var isWeekend = data.isWeekend;
+                var workLogs = [];
+                var workLogFinalList = {};
+                var originalEstimate = ticketOriginalEstimate; 
+                if (!originalEstimate)
+                {
+                    // Getting from the visible box on Time Tracking group (XXd XXh XXm)
+                    originalEstimate = $("#timetrackingmodule .tt_inner dl:first dd:last").text().trim();
+                }
+                
+                if (data.projects && data.projects.length>0 && data.projects[0].issues && data.projects[0].issues.length>0){
+                    workLogs = data.projects[0].issues[0].workLogs;                
+                }            
+
+                if (workLogs && workLogs.length>0){
+                    // first day that we have time tracked
+                    firstLogDay = DateFromEpochMs(workLogs[0].workStart);
+                    // last day that we have time tracked
+                    lastLogDay = firstLogDay;
+
+                    //var workStart = DateFromEpochMs(workLogs[0].workStart);
+                    for(var i=0;i<workLogs.length;i++){
+                        var currentItem = workLogs[i];
+                        var currentDate = DateFromEpochMs(currentItem.workStart);
+                        if (firstLogDay>currentDate){
+                            firstLogDay = currentDate;
+                        }
+                        else if (lastLogDay<currentDate){
+                            lastLogDay = currentDate;
+                        }
+
+                        var currentKey = currentDate.toISOString().split('T')[0]; // yyyy-mm-dd
+                        console.log(workLogFinalList[currentKey]);
+                        if (!workLogFinalList[currentKey]){
+                            workLogFinalList[currentKey] = [];
+                        }
+                        workLogFinalList[currentKey].push(currentItem.timeSpent);
+                        
+                    }
+
+                    // Filling the array with all dates between the first and the last day
+                    for (var d = firstLogDay; d <= (lastLogDay>ticketDueDate?lastLogDay:ticketDueDate); d.setDate(d.getDate() + 1)) {
+                        var formatedDate = d.toISOString().split('T')[0];
+                        if (!workLogFinalList[formatedDate]){
+                            workLogFinalList[formatedDate] = [];
+                        }
+                    }
+
+                    console.table(workLogFinalList);
+                }
+            });
+        });
+        drawGraph2();
+
+    }
+    else{
+
+        
+        ///jira/rest/com.deniz.jira.worklog/1.0/timesheet/issueId?targetKey=679196&_=1571075815473
+        $("#chartParentContainer").addClass("collapsed");
+        $('#chartContainer').text("It's not possible to render a burndown without a due date");
+    }
 }
 $(document).ready(function(){domChange();});
