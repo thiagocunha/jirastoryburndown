@@ -1,46 +1,3 @@
-function drawGraph() {
-
-    var chart = new CanvasJS.Chart("chartContainer", {
-        animationEnabled: true,
-        exportEnabled: false,        
-        axisY:{ 
-            title: "Percentage",
-            includeZero: false, 
-            interval: .2,
-            suffix: "%",
-            valueFormatString: "#.0"
-        },
-        data: [{
-            type: "stepLine",
-            yValueFormatString: "#0.0\"%\"",
-            xValueFormatString: "DD, MMM",
-            markerSize: 5,
-            dataPoints: [
-                { x: new Date(2016, 0), y: 4.9 },
-                { x: new Date(2016, 1), y: 4.9 },
-                { x: new Date(2016, 2), y: 5.0 },
-                { x: new Date(2016, 3), y: 5.0, indexLabel: "Highest", indexLabelFontColor: "#C24642" },
-                { x: new Date(2016, 4), y: 4.7 },
-                { x: new Date(2016, 5), y: 4.9 },
-                { x: new Date(2016, 6), y: 4.9 },
-                { x: new Date(2016, 7), y: 4.9 },
-                { x: new Date(2016, 8), y: 4.9 },
-                { x: new Date(2016, 9), y: 4.8 },
-                { x: new Date(2016, 10), y: 4.6 },
-                { x: new Date(2016, 11), y: 4.7 },
-                { x: new Date(2017, 0), y: 4.8 },
-                { x: new Date(2017, 1), y: 4.7 },
-                { x: new Date(2017, 2), y: 4.5 },
-                { x: new Date(2017, 3), y:4.4 },
-                { x: new Date(2017, 4), y:4.3 },
-                { x: new Date(2017, 5), y:4.4 }
-            ]
-        }]
-    });
-    chart.render();
-    
-}
-
 function createConfig(details, days, ref, real) {
     return {
         type: 'line',
@@ -175,10 +132,17 @@ function getSubWorkingHours(itemsList, currentIndex, workLogs, cb){
     }
 }
 function domChange(){
+    console.log("starting dom changes");
     $('chartContainer').remove();
     var chartParentContainer = $("<div id='chartParentContainer'></div>");
     chartParentContainer.addClass("module").addClass("toggle-wrap");
+    var titleTag = $(".toggle-title").not("a").prop("tagName");
+
     var chartToggle = $("<div id='chartmodule_heading' class='mod-header'><ul class='ops'></ul><a href='#' class='aui-button toggle-title'><svg xmlns='http://www.w3.org/2000/svg' width='14' height='14'><g fill='none' fill-rule='evenodd'><path d='M3.29175 4.793c-.389.392-.389 1.027 0 1.419l2.939 2.965c.218.215.5.322.779.322s.556-.107.769-.322l2.93-2.955c.388-.392.388-1.027 0-1.419-.389-.392-1.018-.392-1.406 0l-2.298 2.317-2.307-2.327c-.194-.195-.449-.293-.703-.293-.255 0-.51.098-.703.293z' fill='#344563'></path></g></svg></a><h4 class='toggle-title'>Burndown</h4></div>");
+
+    if (titleTag == "H2"){
+        chartToggle = $("<div id='chartmodule_heading' class='mod-header'><ul class='ops'></ul><h2 class='toggle-title'>Burndown</h2></div>");
+    }
     var chartContent = $("<div class='mod-content'></div>");
     chartContent.prepend("<div id='chartContainer'>&nbsp;</div>");
     chartParentContainer.prepend(chartContent);
