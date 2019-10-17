@@ -75,7 +75,7 @@ function DateFromEpochMs(e){
 }
 
 function extractJiraTimeFromText(text){
-    var r = /(?:(\d*)w)?\s?(?:(\d*)d)?\s?(?:(\d*)h)?\s?(?:(\d*)m)?\s?/gm;
+    var r = /(?:(\d+\.?\d*?)w)?\s?(?:(\d+\.?\d*?)d)?\s?(?:(\d+\.?\d*?)h)?\s?(?:(\d+\.?\d*?)m)?\s?/gm;
     var m = r.exec(text);
     if (m){
         var weeks = 0;
@@ -84,19 +84,19 @@ function extractJiraTimeFromText(text){
         var minutes = 0;
 
         if (m[1]){
-            weeks = parseInt(m[1]);
+            weeks = parseFloat(m[1]);
         }
         if (m[2]){
-            days = parseInt(m[2]);
+            days = parseFloat(m[2]);
         }
         if (m[3]){
-            hours = parseInt(m[3]);
+            hours = parseFloat(m[3]);
         }
         if (m[4]){
-            minutes = parseInt(m[4]);
+            minutes = parseFloat(m[4]);
         }
             
-        return (weeks * 5 * 8 * 60) + (days * 8 * 60) + (hours * 60) + (minutes);
+        return (weeks * 5 * 8 * 60 * 60) + (days * 8 * 60 * 60) + (hours * 60 * 60) + (minutes * 60);
     }
     else{
         return 0;
@@ -106,10 +106,13 @@ function cloneDate(original){
     return new Date(original.getFullYear(), original.getMonth(), original.getDate());
 }
 
-function getSubWorkingHours(itemsList, currentIndex, workLogs, cb){
+function getSubWorkingHours(workLogURL, itemsList, currentIndex, workLogs, cb){
     if (itemsList && itemsList[currentIndex]){
         $.ajax({
-            url: "https://" + window.location.hostname + "/jira/rest/com.deniz.jira.worklog/1.0/timesheet/issueId?targetKey="+itemsList[currentIndex]+"&_=1571075815473"
+            url: workLogURL.replace(itemsList[currentIndex]),
+            headers: {
+                "X-PJAX": true
+            }
         }).done(function( data ) {
 
             var tempLogs = [];
@@ -119,7 +122,7 @@ function getSubWorkingHours(itemsList, currentIndex, workLogs, cb){
             }    
 
             if (currentIndex<itemsList.length-1){
-                getSubWorkingHours(itemsList, currentIndex+1, workLogs, cb);
+                getSubWorkingHours(workLogURL, itemsList, currentIndex+1, workLogs, cb);
             }
             else{
                 // get data
@@ -138,6 +141,7 @@ function domChange(){
     chartParentContainer.addClass("module").addClass("toggle-wrap");
     var titleTag = $(".toggle-title").not("a").prop("tagName");
 
+    // Default behavior with H4 tag
     var chartToggle = $("<div id='chartmodule_heading' class='mod-header'><ul class='ops'></ul><a href='#' class='aui-button toggle-title'><svg xmlns='http://www.w3.org/2000/svg' width='14' height='14'><g fill='none' fill-rule='evenodd'><path d='M3.29175 4.793c-.389.392-.389 1.027 0 1.419l2.939 2.965c.218.215.5.322.779.322s.556-.107.769-.322l2.93-2.955c.388-.392.388-1.027 0-1.419-.389-.392-1.018-.392-1.406 0l-2.298 2.317-2.307-2.327c-.194-.195-.449-.293-.703-.293-.255 0-.51.098-.703.293z' fill='#344563'></path></g></svg></a><h4 class='toggle-title'>Burndown</h4></div>");
 
     if (titleTag == "H2"){
@@ -150,13 +154,25 @@ function domChange(){
 
     $('#viewissuesidebar').prepend(chartParentContainer);
 
+    const baseDomain = $('meta[name=ajs-jira-base-url]').attr("content");
+
+    var workLogURL = baseDomain + $("li[data-label='Work Log']").attr("data-href");
+    
+    var isDenizWorklog = false;
+    if (workLogURL.includes("com.deniz")){
+        isDenizWorklog = true;
+        workLogURL = baseDomain + "/rest/com.deniz.jira.worklog/1.0/timesheet/issueId?targetKey={0}&_=1571075815473";
+    }
 
     var dueDate = $("#due-date time").attr("datetime");
     var issueID = $("#key-val.issue-link").attr("rel");
 
+    var issueURL = baseDomain + "/secure/QuickEditIssue!default.jspa?issueId="+issueID+"&decorator=none";
+
+
     if (dueDate){
         $.ajax({
-            url: "https://" + window.location.hostname + "/jira/secure/QuickEditIssue!default.jspa?issueId="+issueID+"&decorator=none"
+            url: issueURL
         }).done(function( ticketData ) {
 
             var ticketDueDate;
@@ -187,10 +203,13 @@ function domChange(){
             }
 
             $.ajax({
-                url: "https://" + window.location.hostname + "/jira/rest/com.deniz.jira.worklog/1.0/timesheet/issueId?targetKey="+issueID+"&_=1571075815473"
+                url: workLogURL.replace("{0}", issueID),
+                headers: {
+                    "X-PJAX": true
+                }
             }).done(function( data ) {
 
-                //console.log(data);
+                console.log(data);
                 
                 var totalDaysRange = data.daysBetween;
                 var firstLogDay;
@@ -206,35 +225,47 @@ function domChange(){
                 if (!originalEstimate)
                 {
                     // Getting from the visible box on Time Tracking group (XXd XXh XXm)
-                    originalEstimate = extractJiraTimeFromText($("#timetrackingmodule .tt_inner dl:first dd:last").text().trim());
+                    originalEstimate = extractJiraTimeFromText($("#timetrackingmodule .tt_inner dl:first dd:last").text().trim())/60;
                 }                
                                 
                 // Getting remaining from the visible box on Time Tracking group (XXd XXh XXm)
-                var remainingTime = extractJiraTimeFromText($("#timetrackingmodule .tt_inner dl:nth(1) dd:last").text().trim());
+                var remainingTime = extractJiraTimeFromText($("#timetrackingmodule .tt_inner dl:nth(1) dd:last").text().trim())/60;
 
                 // Getting logged from the visible box on Time Tracking group (XXd XXh XXm)
-                var loggedTime = extractJiraTimeFromText($("#timetrackingmodule .tt_inner dl:last dd:last").text().trim());
+                var loggedTime = extractJiraTimeFromText($("#timetrackingmodule .tt_inner dl:last dd:last").text().trim())/60;
 
                 numericTotalTime = loggedTime + remainingTime;
 
+                // Deniz plugin returns json data
                 if (data.projects && data.projects.length>0 && data.projects[0].issues && data.projects[0].issues.length>0){
                     workLogs = data.projects[0].issues[0].workLogs;                
-                }            
+                }     
+                // Default plugin returns html data
+                else{
+                    var r = /<span\sclass=date>(.*?)<(?:.*?\n)*?.*?duration.>(.*?)</gm;
+                    var m=r.exec(data);
+
+                    while (m){
+                        var dateTemp = new Date(m[1]);
+                        var workLogTemp ={};
+                        workLogTemp.workStart = dateTemp.getTime();
+                        workLogTemp.timeSpent = extractJiraTimeFromText(m[2]);
+                        workLogs.push(workLogTemp);
+                        m=r.exec(data);
+                    }
+                }       
 
                 // Get children items work logs
                 var subIds = [];
                 // Get sub-tasks ids
                 $(".subtask-table-container .issuerow").each(function(i,e){subIds.push($(e).attr("rel"));});
 
-                getSubWorkingHours(subIds, 0, workLogs, function (finalWorkLogs){
+                getSubWorkingHours(workLogURL, subIds, 0, workLogs, function (finalWorkLogs){
+                    console.log(workLogs);
+                    
                     // do we have any work logged?
                     if (finalWorkLogs && finalWorkLogs.length>0){
-                        // first day that we have time tracked
-                        firstLogDay = cloneDate(DateFromEpochMs(finalWorkLogs[0].workStart));
-                        // last day that we have time tracked
-                        lastLogDay = cloneDate(firstLogDay);
-                        var currentRemaining = numericTotalTime;
-
+                        
                         // Sort after merging all tickets
                         finalWorkLogs.sort(function(a,b){
                             if (a.workStart<b.workStart){
@@ -248,6 +279,11 @@ function domChange(){
                             }
                         });
                         
+                        // first day that we have time tracked
+                        firstLogDay = cloneDate(DateFromEpochMs(finalWorkLogs[0].workStart));
+                        // last day that we have time tracked
+                        lastLogDay = cloneDate(firstLogDay);
+                        var currentRemaining = numericTotalTime;
 
                         for(var i=0;i<finalWorkLogs.length;i++){
                             var currentItem = finalWorkLogs[i];
@@ -265,7 +301,7 @@ function domChange(){
                                 workLogFinalList[currentKey] = { items: [], dailyBurnedMinutes: 0 };
                             }
 
-                            var burnedOnTask = parseInt(currentItem.timeSpent)/60;
+                            var burnedOnTask = parseFloat(currentItem.timeSpent)/60;
                             workLogFinalList[currentKey].dailyBurnedMinutes += burnedOnTask; 
                             currentRemaining = currentRemaining - burnedOnTask;
                             workLogFinalList[currentKey].items.push(currentItem.timeSpent);
@@ -282,7 +318,7 @@ function domChange(){
                         // Filling the array with all dates between the first and the last day
                         for (var d = cloneDate(firstLogDay); d <= lastDay && daysList.length<50; d.setDate(d.getDate() + 1)) {
                             // Getting only weekdays
-                            if (d.getDay()<6){
+                            if (d.getDay()<6 && d.getDay()>0){
                                 var formatedDate = d.toISOString().split('T')[0];
                                 console.log(formatedDate);
                                 if (!workLogFinalList[formatedDate]){
