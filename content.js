@@ -109,7 +109,7 @@ function cloneDate(original){
 function getSubWorkingHours(workLogURL, itemsList, currentIndex, workLogs, cb){
     if (itemsList && itemsList[currentIndex]){
         $.ajax({
-            url: workLogURL.replace(itemsList[currentIndex]),
+            url: workLogURL.replace("{0}", itemsList[currentIndex]).replace("{1}", itemsList[currentIndex]),
             headers: {
                 "X-PJAX": true
             }
@@ -159,14 +159,21 @@ function domChange(){
     var workLogURL = baseDomain + $("li[data-label='Work Log']").attr("data-href");
     
     var isDenizWorklog = false;
+    var issueID = $("#key-val.issue-link").attr("rel");
+    var ticket = $('meta[name=ajs-issue-key]').attr("content");
+
     if (workLogURL.includes("com.deniz")){
         isDenizWorklog = true;
         workLogURL = baseDomain + "/rest/com.deniz.jira.worklog/1.0/timesheet/issueId?targetKey={0}&_=1571075815473";
     }
+    else{
+        var r = /(http.*?browse\/)(.*?)(\?.*)/ig;
+        workLogURL = workLogURL.replace(r, "$1{1}$3");
+        
+    }
 
     var dueDate = $("#due-date time").attr("datetime");
-    var issueID = $("#key-val.issue-link").attr("rel");
-
+    
     var issueURL = baseDomain + "/secure/QuickEditIssue!default.jspa?issueId="+issueID+"&decorator=none";
 
 
@@ -203,13 +210,13 @@ function domChange(){
             }
 
             $.ajax({
-                url: workLogURL.replace("{0}", issueID),
+                url: workLogURL.replace("{0}", issueID).replace("{1}", ticket),
                 headers: {
                     "X-PJAX": true
                 }
             }).done(function( data ) {
 
-                console.log(data);
+                //console.log(data);
                 
                 var totalDaysRange = data.daysBetween;
                 var firstLogDay;
@@ -258,7 +265,14 @@ function domChange(){
                 // Get children items work logs
                 var subIds = [];
                 // Get sub-tasks ids
-                $(".subtask-table-container .issuerow").each(function(i,e){subIds.push($(e).attr("rel"));});
+                $(".subtask-table-container .issuerow").each(function(i,e){
+                    if (isDenizWorklog){
+                        subIds.push($(e).attr("rel"));
+                    }
+                    else{
+                        subIds.push($(e).attr("data-issue-key"));
+                    }
+                });
 
                 getSubWorkingHours(workLogURL, subIds, 0, workLogs, function (finalWorkLogs){
                     console.log(workLogs);
@@ -320,7 +334,7 @@ function domChange(){
                             // Getting only weekdays
                             if (d.getDay()<6 && d.getDay()>0){
                                 var formatedDate = d.toISOString().split('T')[0];
-                                console.log(formatedDate);
+                                //console.log(formatedDate);
                                 if (!workLogFinalList[formatedDate]){
                                     dataRealBurnLine = dataRealBurnLine.concat([,]);
                                 }
@@ -348,6 +362,10 @@ function domChange(){
                         }
 
                         drawGraph2(daysList, dataReferenceLine, dataRealBurnLine);
+                    }
+                    else{
+                        $("#chartParentContainer").addClass("collapsed");
+                        $('#chartContainer').text("No worklog available");
                     }
                 });
                 
