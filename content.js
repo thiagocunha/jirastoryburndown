@@ -303,10 +303,6 @@ function domChange(){
 
                             var burnedOnTask = parseInt(currentItem.timeSpent)/60;
                             workLogFinalList[currentKey].dailyBurnedMinutes += burnedOnTask; 
-                            console.log(i);
-                            console.log(currentKey);
-                            console.log("Current remaining " + currentRemaining);  
-                            console.log("Burned: "+ workLogFinalList[currentKey].dailyBurnedMinutes);                     
                             currentRemaining = currentRemaining - burnedOnTask;
                             workLogFinalList[currentKey].items.push(currentItem.timeSpent);
 
@@ -333,15 +329,12 @@ function domChange(){
                                 }
 
                                 if (d.getTime()==firstLogDay.getTime()){
-                                    console.log("first day");
                                     dataReferenceLine.push(numericTotalTime);
                                 }
                                 else if (d.getTime()==lastDay.getTime()){
                                     dataReferenceLine.push(0);
-                                    console.log("last day");
                                 }
                                 else{
-                                    console.log("usual day");
                                     // Add an empty spot
                                     dataReferenceLine = dataReferenceLine.concat([,]);
                                 }
@@ -349,15 +342,10 @@ function domChange(){
                                 const formatter = new Intl.DateTimeFormat('en', { month: 'short' });
                                 const month1 = formatter.format(d);
                                 const dayOfDate = d.getDate();
-                                console.log(month1, dayOfDate);
 
                                 daysList.push(month1+", "+dayOfDate);
                             }
                         }
-                        console.log(dataReferenceLine);
-                        console.log(dataRealBurnLine);
-                        console.log(daysList);
-
 
                         drawGraph2(daysList, dataReferenceLine, dataRealBurnLine);
                     }

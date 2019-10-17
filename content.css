@@ -6,7 +6,7 @@ canvas {
     -ms-user-select: none;
 }
 .chart-container {
-    width: 310px;
+    width: 100%;
     margin-left: 1px;
     margin-right: 1px;
     margin-bottom: 1px;
