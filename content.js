@@ -41,23 +41,24 @@ function drawGraph() {
     
 }
 
-function createConfig(details, data) {
+function createConfig(details, days, ref, real) {
     return {
         type: 'line',
         data: {
-            labels: ['Oct, 1', 'Oct, 2', 'Oct, 3', 'Oct, 4', 'Oct, 5', 'Oct, 6', 'Oct, 7', 'Oct, 8'],
+            labels: days,
             datasets: [{
                 label: details.steppedLine,
                 steppedLine: details.steppedLine,
-                data: data,
+                data: real,
                 borderColor: 'red',
                 fill: false,
-                lineTension:0
+                lineTension:0,
+                spanGaps: true
             },
             {
                 label: details.steppedLine,
                 steppedLine: details.steppedLine,
-                data: [85, ,,,,,, 0], //data: [85, 85*(6/7), 85*(5/7), 85*(4/7), 85*(3/7), 85*(2/7), 85*(1/7), 0],
+                data: ref, //data: [85, 85*(6/7), 85*(5/7), 85*(4/7), 85*(3/7), 85*(2/7), 85*(1/7), 0],
                 borderColor: 'green',
                 fill: false,
                 lineTension:0,
@@ -86,11 +87,9 @@ function createConfig(details, data) {
     };
 }
 
-function drawGraph2() {
+function drawGraph2(days, ref, real) {
     var container = document.querySelector('#chartContainer');
-    var data = [
-        85, 82, 55, 50, 30, 20, 10, 5    
-    ];
+    
     var steppedLineSettings = [{
         steppedLine: false,
         label: 'No Step Interpolation'
@@ -102,7 +101,7 @@ function drawGraph2() {
         div.appendChild(canvas);
         container.appendChild(div);
         var ctx = canvas.getContext('2d');
-        var config = createConfig(details, data);
+        var config = createConfig(details, days, ref, real);
         new Chart(ctx, config);
     });
 }
@@ -118,6 +117,63 @@ function DateFromEpochMs(e){
     }
 }
 
+function extractJiraTimeFromText(text){
+    var r = /(?:(\d*)w)?\s?(?:(\d*)d)?\s?(?:(\d*)h)?\s?(?:(\d*)m)?\s?/gm;
+    var m = r.exec(text);
+    if (m){
+        var weeks = 0;
+        var days = 0;
+        var hours = 0;
+        var minutes = 0;
+
+        if (m[1]){
+            weeks = parseInt(m[1]);
+        }
+        if (m[2]){
+            days = parseInt(m[2]);
+        }
+        if (m[3]){
+            hours = parseInt(m[3]);
+        }
+        if (m[4]){
+            minutes = parseInt(m[4]);
+        }
+            
+        return (weeks * 5 * 8 * 60) + (days * 8 * 60) + (hours * 60) + (minutes);
+    }
+    else{
+        return 0;
+    }
+}
+function cloneDate(original){
+    return new Date(original.getFullYear(), original.getMonth(), original.getDate());
+}
+
+function getSubWorkingHours(itemsList, currentIndex, workLogs, cb){
+    if (itemsList && itemsList[currentIndex]){
+        $.ajax({
+            url: "https://" + window.location.hostname + "/jira/rest/com.deniz.jira.worklog/1.0/timesheet/issueId?targetKey="+itemsList[currentIndex]+"&_=1571075815473"
+        }).done(function( data ) {
+
+            var tempLogs = [];
+            if (data.projects && data.projects.length>0 && data.projects[0].issues && data.projects[0].issues.length>0){
+                tempLogs = data.projects[0].issues[0].workLogs;    
+                workLogs = workLogs.concat(tempLogs);            
+            }    
+
+            if (currentIndex<itemsList.length-1){
+                getSubWorkingHours(itemsList, currentIndex+1, workLogs, cb);
+            }
+            else{
+                // get data
+                cb(workLogs);
+            }
+        });
+    }
+    else{
+        cb(workLogs);
+    }
+}
 function domChange(){
     $('chartContainer').remove();
     var chartParentContainer = $("<div id='chartParentContainer'></div>");
@@ -135,8 +191,6 @@ function domChange(){
     var issueID = $("#key-val.issue-link").attr("rel");
 
     if (dueDate){
-        //https://jira.coke.com/jira/secure/QuickEditIssue!default.jspa?issueId=679196&decorator=none
-
         $.ajax({
             url: "https://" + window.location.hostname + "/jira/secure/QuickEditIssue!default.jspa?issueId="+issueID+"&decorator=none"
         }).done(function( ticketData ) {
@@ -149,24 +203,20 @@ function domChange(){
                 var currentField = ticketData.fields[i];
 
                 if (currentField.id == "duedate"){
-                    console.log(currentField.editHtml);
 
                     var r = /id=.duedate.*?value=.(\d+\/.{1,3}\/.{2,4}).>/gm;
                     var m = r.exec(currentField.editHtml);
                     if (m)
                     {
-                        console.log(m);
                         ticketDueDate = m[1];
                     }
                 }
                 else if (currentField.id == "timetracking"){
-                    console.log(currentField.editHtml);
 
                     var r = /id=.timetracking_originalestimate.*?value=.([\d\w\s]*?).\/>/gm;
                     var m = r.exec(currentField.editHtml);
                     if (m)
                     {
-                        console.log(m);
                         ticketOriginalEstimate = m[1];
                     }
                 }
@@ -176,70 +226,148 @@ function domChange(){
                 url: "https://" + window.location.hostname + "/jira/rest/com.deniz.jira.worklog/1.0/timesheet/issueId?targetKey="+issueID+"&_=1571075815473"
             }).done(function( data ) {
 
-                console.log(data);
+                //console.log(data);
                 
                 var totalDaysRange = data.daysBetween;
                 var firstLogDay;
                 var lastLogDay;
-                var isWeekend = data.isWeekend;
                 var workLogs = [];
                 var workLogFinalList = {};
                 var originalEstimate = ticketOriginalEstimate; 
+                var numericTotalTime = 0;
+                var dataReferenceLine = [];
+                var dataRealBurnLine = [];
+                var daysList = [];
+
                 if (!originalEstimate)
                 {
                     // Getting from the visible box on Time Tracking group (XXd XXh XXm)
-                    originalEstimate = $("#timetrackingmodule .tt_inner dl:first dd:last").text().trim();
-                }
-                
+                    originalEstimate = extractJiraTimeFromText($("#timetrackingmodule .tt_inner dl:first dd:last").text().trim());
+                }                
+                                
+                // Getting remaining from the visible box on Time Tracking group (XXd XXh XXm)
+                var remainingTime = extractJiraTimeFromText($("#timetrackingmodule .tt_inner dl:nth(1) dd:last").text().trim());
+
+                // Getting logged from the visible box on Time Tracking group (XXd XXh XXm)
+                var loggedTime = extractJiraTimeFromText($("#timetrackingmodule .tt_inner dl:last dd:last").text().trim());
+
+                numericTotalTime = loggedTime + remainingTime;
+
                 if (data.projects && data.projects.length>0 && data.projects[0].issues && data.projects[0].issues.length>0){
                     workLogs = data.projects[0].issues[0].workLogs;                
                 }            
 
-                if (workLogs && workLogs.length>0){
-                    // first day that we have time tracked
-                    firstLogDay = DateFromEpochMs(workLogs[0].workStart);
-                    // last day that we have time tracked
-                    lastLogDay = firstLogDay;
+                // Get children items work logs
+                var subIds = [];
+                // Get sub-tasks ids
+                $(".subtask-table-container .issuerow").each(function(i,e){subIds.push($(e).attr("rel"));});
 
-                    //var workStart = DateFromEpochMs(workLogs[0].workStart);
-                    for(var i=0;i<workLogs.length;i++){
-                        var currentItem = workLogs[i];
-                        var currentDate = DateFromEpochMs(currentItem.workStart);
-                        if (firstLogDay>currentDate){
-                            firstLogDay = currentDate;
-                        }
-                        else if (lastLogDay<currentDate){
-                            lastLogDay = currentDate;
-                        }
+                getSubWorkingHours(subIds, 0, workLogs, function (finalWorkLogs){
+                    // do we have any work logged?
+                    if (finalWorkLogs && finalWorkLogs.length>0){
+                        // first day that we have time tracked
+                        firstLogDay = cloneDate(DateFromEpochMs(finalWorkLogs[0].workStart));
+                        // last day that we have time tracked
+                        lastLogDay = cloneDate(firstLogDay);
+                        var currentRemaining = numericTotalTime;
 
-                        var currentKey = currentDate.toISOString().split('T')[0]; // yyyy-mm-dd
-                        console.log(workLogFinalList[currentKey]);
-                        if (!workLogFinalList[currentKey]){
-                            workLogFinalList[currentKey] = [];
-                        }
-                        workLogFinalList[currentKey].push(currentItem.timeSpent);
+                        // Sort after merging all tickets
+                        finalWorkLogs.sort(function(a,b){
+                            if (a.workStart<b.workStart){
+                                return -1;
+                            }
+                            else if (a.workStart>b.workStart){
+                                return 1;
+                            }
+                            else{
+                                return 0;
+                            }
+                        });
                         
-                    }
 
-                    // Filling the array with all dates between the first and the last day
-                    for (var d = firstLogDay; d <= (lastLogDay>ticketDueDate?lastLogDay:ticketDueDate); d.setDate(d.getDate() + 1)) {
-                        var formatedDate = d.toISOString().split('T')[0];
-                        if (!workLogFinalList[formatedDate]){
-                            workLogFinalList[formatedDate] = [];
+                        for(var i=0;i<finalWorkLogs.length;i++){
+                            var currentItem = finalWorkLogs[i];
+                            var currentDate = DateFromEpochMs(currentItem.workStart);
+                            if (firstLogDay>currentDate){
+                                firstLogDay = cloneDate(currentDate);
+                            }
+                            else if (lastLogDay<currentDate){
+                                lastLogDay = cloneDate(currentDate);
+                            }
+
+                            var currentKey = currentDate.toISOString().split('T')[0]; // yyyy-mm-dd
+                            
+                            if (!workLogFinalList[currentKey]){
+                                workLogFinalList[currentKey] = { items: [], dailyBurnedMinutes: 0 };
+                            }
+
+                            var burnedOnTask = parseInt(currentItem.timeSpent)/60;
+                            workLogFinalList[currentKey].dailyBurnedMinutes += burnedOnTask; 
+                            console.log(i);
+                            console.log(currentKey);
+                            console.log("Current remaining " + currentRemaining);  
+                            console.log("Burned: "+ workLogFinalList[currentKey].dailyBurnedMinutes);                     
+                            currentRemaining = currentRemaining - burnedOnTask;
+                            workLogFinalList[currentKey].items.push(currentItem.timeSpent);
+
+                            workLogFinalList[currentKey].dailyRemaining = currentRemaining;
+
                         }
-                    }
 
-                    console.table(workLogFinalList);
-                }
+                        ticketDueDate = new Date(ticketDueDate);
+                        var lastDay = (lastLogDay>ticketDueDate?cloneDate(lastLogDay):cloneDate(ticketDueDate));
+
+                        
+                        
+                        // Filling the array with all dates between the first and the last day
+                        for (var d = cloneDate(firstLogDay); d <= lastDay && daysList.length<50; d.setDate(d.getDate() + 1)) {
+                            // Getting only weekdays
+                            if (d.getDay()<6){
+                                var formatedDate = d.toISOString().split('T')[0];
+                                console.log(formatedDate);
+                                if (!workLogFinalList[formatedDate]){
+                                    dataRealBurnLine = dataRealBurnLine.concat([,]);
+                                }
+                                else{
+                                    dataRealBurnLine.push(workLogFinalList[formatedDate].dailyRemaining);
+                                }
+
+                                if (d.getTime()==firstLogDay.getTime()){
+                                    console.log("first day");
+                                    dataReferenceLine.push(numericTotalTime);
+                                }
+                                else if (d.getTime()==lastDay.getTime()){
+                                    dataReferenceLine.push(0);
+                                    console.log("last day");
+                                }
+                                else{
+                                    console.log("usual day");
+                                    // Add an empty spot
+                                    dataReferenceLine = dataReferenceLine.concat([,]);
+                                }
+
+                                const formatter = new Intl.DateTimeFormat('en', { month: 'short' });
+                                const month1 = formatter.format(d);
+                                const dayOfDate = d.getDate();
+                                console.log(month1, dayOfDate);
+
+                                daysList.push(month1+", "+dayOfDate);
+                            }
+                        }
+                        console.log(dataReferenceLine);
+                        console.log(dataRealBurnLine);
+                        console.log(daysList);
+
+
+                        drawGraph2(daysList, dataReferenceLine, dataRealBurnLine);
+                    }
+                });
+                
             });
         });
-        drawGraph2();
 
     }
-    else{
-
-        
-        ///jira/rest/com.deniz.jira.worklog/1.0/timesheet/issueId?targetKey=679196&_=1571075815473
+    else{        
         $("#chartParentContainer").addClass("collapsed");
         $('#chartContainer').text("It's not possible to render a burndown without a due date");
     }
