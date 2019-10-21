@@ -3,11 +3,9 @@
   "name": "Jira Story Burndow",
   "description": "This extension wil display a burndown graph when a story is opened on Jira.",
   "version": "1",
-  "options_page": "options/options.html",
   "browser_action": {
     "default_title": "JiraStoryBurndown",
-    "default_icon": "img/jira128.png",
-    "default_popup": "popup/popup.html"
+    "default_icon": "img/jira128.png"
   },
   "icons": {
     "128": "img/jira128.png",
@@ -20,14 +18,11 @@
     {
       "matches": ["https://jira.coke.com/jira/browse/*", "https://jiracloud.cit.com.br/browse/*"],
       "css": ["content.css"],
-      "js": ["util/Chart.min.js","util/jquery.min.js", "main/jiramon.js",  "content.js"]
+      "js": ["util/Chart.min.js","util/jquery.min.js",  "content.js"]
     }
   ],
    "permissions": [
-     "alarms",
-    "storage",
     "tabs",
-    "unlimitedStorage",
     "*://*/*"
   ],
    "web_accessible_resources": [
