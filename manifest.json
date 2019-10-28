@@ -15,7 +15,7 @@
     {
       "matches": ["https://jira.coke.com/jira/browse/*", "https://jiracloud.cit.com.br/browse/*"],
       "css": ["content.css"],
-      "js": ["util/Chart.min.js","util/jquery.min.js",  "content.js"]
+      "js": ["util/Chart.min.js","util/jquery.min.js",  "content.js", "util/util.js"]
     }
   ],
    "permissions": [

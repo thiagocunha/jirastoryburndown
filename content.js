@@ -1,12 +1,20 @@
-function createConfig(details, days, ref, real) {
+/**
+ * Create the configuration data structure needed to 
+ * instantiate a new Chart/Graph
+ * @param {object} details External atributes for configuring the graph 
+ * @param {Array} daysList List of the day names to be shown 
+ * @param {Array} referenceData The data that will be plotted  
+ * @param {Array} currentData The executed hours data
+ */
+function createConfig(details, daysList, referenceData, currentData) {
     return {
         type: 'line',
         data: {
-            labels: days,
+            labels: daysList,
             datasets: [{
                 label: details.steppedLine,
                 steppedLine: details.steppedLine,
-                data: real,
+                data: currentData,
                 borderColor: 'red',
                 fill: false,
                 lineTension:0,
@@ -15,7 +23,7 @@ function createConfig(details, days, ref, real) {
             {
                 label: details.steppedLine,
                 steppedLine: details.steppedLine,
-                data: ref, //data: [85, 85*(6/7), 85*(5/7), 85*(4/7), 85*(3/7), 85*(2/7), 85*(1/7), 0],
+                data: referenceData, //data: [85, 85*(6/7), 85*(5/7), 85*(4/7), 85*(3/7), 85*(2/7), 85*(1/7), 0],
                 borderColor: 'green',
                 fill: false,
                 lineTension:0,
@@ -44,68 +52,39 @@ function createConfig(details, days, ref, real) {
     };
 }
 
-function drawGraph2(days, ref, real) {
+/**
+ * Call the chart rendering method 
+ * @param {Array} daysList List of the day names to be shown 
+ * @param {Array} referenceData The data that will be plotted  
+ * @param {Array} currentData The executed hours data
+ */
+function renderGraph(daysList, referenceData, currentData) {
     var container = document.querySelector('#chartContainer');
     
-    var steppedLineSettings = [{
+    var steppedLineSettings = {
         steppedLine: false,
         label: 'No Step Interpolation'
-    }];
-    steppedLineSettings.forEach(function(details) {
-        var div = document.createElement('div');
-        div.classList.add('chart-container');
-        var canvas = document.createElement('canvas');
-        div.appendChild(canvas);
-        container.appendChild(div);
-        var ctx = canvas.getContext('2d');
-        var config = createConfig(details, days, ref, real);
-        new Chart(ctx, config);
-    });
+    };
+    
+    var div = document.createElement('div');
+    div.classList.add('chart-container');
+    var canvas = document.createElement('canvas');
+    div.appendChild(canvas);
+    container.appendChild(div);
+    var ctx = canvas.getContext('2d');
+    var config = createConfig(steppedLineSettings, daysList, referenceData, currentData);
+    new Chart(ctx, config);
+    
 }
 
-function DateFromEpochMs(e){
-    if (e){
-        var d = new Date(0);
-        d.setUTCMilliseconds(e);
-        return d;
-    }
-    else{
-        return e;
-    }
-}
-
-function extractJiraTimeFromText(text){
-    var r = /(?:(\d+\.?\d*?)w)?\s?(?:(\d+\.?\d*?)d)?\s?(?:(\d+\.?\d*?)h)?\s?(?:(\d+\.?\d*?)m)?\s?/gm;
-    var m = r.exec(text);
-    if (m){
-        var weeks = 0;
-        var days = 0;
-        var hours = 0;
-        var minutes = 0;
-
-        if (m[1]){
-            weeks = parseFloat(m[1]);
-        }
-        if (m[2]){
-            days = parseFloat(m[2]);
-        }
-        if (m[3]){
-            hours = parseFloat(m[3]);
-        }
-        if (m[4]){
-            minutes = parseFloat(m[4]);
-        }
-            
-        return (weeks * 5 * 8 * 60 * 60) + (days * 8 * 60 * 60) + (hours * 60 * 60) + (minutes * 60);
-    }
-    else{
-        return 0;
-    }
-}
-function cloneDate(original){
-    return new Date(original.getFullYear(), original.getMonth(), original.getDate());
-}
-
+/**
+ * Get Sub-Tasks details to calculate the totals for the story
+ * @param {string} workLogURL Base URL for getting sub-tasks details
+ * @param {Array} itemsList List of tasks
+ * @param {int} currentIndex The index of the current extracted task in the total list
+ * @param {Array} workLogs Current worklogs list
+ * @param {callback} cb Callback
+ */
 function getSubWorkingHours(workLogURL, itemsList, currentIndex, workLogs, cb){
     if (itemsList && itemsList[currentIndex]){
         $.ajax({
@@ -134,7 +113,11 @@ function getSubWorkingHours(workLogURL, itemsList, currentIndex, workLogs, cb){
         cb(workLogs);
     }
 }
-function domChange(){
+
+/** 
+ * Create the HTML structure for displaying the Burn Down graph on a JIRA Ticket page
+ */
+function insertBurnDownDOM(){
     console.log("starting dom changes");
     $('chartContainer').remove();
     var chartParentContainer = $("<div id='chartParentContainer'></div>");
@@ -294,14 +277,14 @@ function domChange(){
                         });
                         
                         // first day that we have time tracked
-                        firstLogDay = cloneDate(DateFromEpochMs(finalWorkLogs[0].workStart));
+                        firstLogDay = cloneDate(dateFromEpochMs(finalWorkLogs[0].workStart));
                         // last day that we have time tracked
                         lastLogDay = cloneDate(firstLogDay);
                         var currentRemaining = numericTotalTime;
 
                         for(var i=0;i<finalWorkLogs.length;i++){
                             var currentItem = finalWorkLogs[i];
-                            var currentDate = DateFromEpochMs(currentItem.workStart);
+                            var currentDate = dateFromEpochMs(currentItem.workStart);
                             if (firstLogDay>currentDate){
                                 firstLogDay = cloneDate(currentDate);
                             }
@@ -361,7 +344,7 @@ function domChange(){
                             }
                         }
 
-                        drawGraph2(daysList, dataReferenceLine, dataRealBurnLine);
+                        renderGraph(daysList, dataReferenceLine, dataRealBurnLine);
                     }
                     else{
                         $("#chartParentContainer").addClass("collapsed");
@@ -378,4 +361,5 @@ function domChange(){
         $('#chartContainer').text("It's not possible to render a burndown without a due date");
     }
 }
-$(document).ready(function(){domChange();});
+
+$(document).ready(function(){insertBurnDownDOM();});
