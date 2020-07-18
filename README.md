@@ -7,4 +7,5 @@ To install the extension on your browser, download/clone this repository and fol
 * Navigate to the local folder containing the extension’s code and click Ok
 * Assuming there are no errors, the extension should load into your browser
 
+TODO: Test with the new Jira version
 
